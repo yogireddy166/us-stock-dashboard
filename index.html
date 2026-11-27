@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>US Stock Dashboard</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f6f4; --surface: #ffffff; --surface-2: #f0f0ee; --line: #e4e4e0;
+  --text: #191919; --text-2: #666666; --accent: #257de0;
+  --up: #0a7d22; --down: #c62f30; --mid: #efefef;
+  --up-bg: 10,172,35; --down-bg: 236,70,71;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #111111; --surface: #191919; --surface-2: #222222; --line: #303030;
+    --text: #efefef; --text-2: #9c9c9c; --accent: #338ced;
+    --up: #3ccf55; --down: #ff7b7c; --mid: #383838;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111111; --surface: #191919; --surface-2: #222222; --line: #303030;
+  --text: #efefef; --text-2: #9c9c9c; --accent: #338ced;
+  --up: #3ccf55; --down: #ff7b7c; --mid: #383838;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { padding: 20px 24px 8px; display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; }
+h1 { margin: 0; font-size: 22px; }
+.muted { color: var(--text-2); }
+main { padding: 0 24px 40px; max-width: 1600px; margin: 0 auto; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.grid { display: grid; gap: 12px; }
+.bench { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin: 8px 0 16px; }
+.bench .name { font-size: 12px; color: var(--text-2); }
+.bench .price { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.bench .rets { display: flex; gap: 10px; font-size: 12px; margin-top: 4px; flex-wrap: wrap; }
+.up { color: var(--up); } .down { color: var(--down); }
+.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+input[type=search], select, button { font: inherit; color: var(--text); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+input[type=search] { min-width: 240px; }
+button { cursor: pointer; }
+button:hover { border-color: var(--accent); }
+.pills { display: inline-flex; flex-wrap: wrap; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
+.pills button { border: 0; padding: 5px 9px; border-radius: 6px; background: transparent; }
+.pills button.on { background: var(--accent); color: #fff; }
+.two { grid-template-columns: 1fr 1fr 1.2fr; margin-bottom: 16px; }
+@media (max-width: 1100px) { .two { grid-template-columns: 1fr; } }
+h2 { font-size: 15px; margin: 0 0 10px; }
+.movers table { width: 100%; border-collapse: collapse; }
+.movers td { padding: 3px 4px; border-bottom: 1px solid var(--line); }
+.movers tr { cursor: pointer; } .movers tr:hover td { background: var(--surface-2); }
+.sector-row { display: grid; grid-template-columns: 170px 1fr 64px; align-items: center; gap: 8px; margin: 5px 0; font-size: 13px; }
+.sector-row .track { position: relative; height: 14px; }
+.sector-row .zero { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--text-2); opacity: .5; }
+.sector-row .bar { position: absolute; top: 2px; height: 10px; border-radius: 4px; }
+.tablewrap { overflow: auto; max-height: 75vh; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table.main { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
+table.main th { position: sticky; top: 0; background: var(--surface-2); z-index: 2; padding: 8px 8px; text-align: right;
+  cursor: pointer; user-select: none; white-space: nowrap; border-bottom: 1px solid var(--line); font-weight: 600; }
+table.main th.l, table.main td.l { text-align: left; }
+table.main th.sorted { color: var(--accent); }
+table.main td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+table.main tbody tr { cursor: pointer; }
+table.main tbody tr:hover td { outline: 1px solid var(--line); background-image: linear-gradient(rgba(127,127,127,.08), rgba(127,127,127,.08)); }
+table.main td.sticky, table.main th.sticky { position: sticky; left: 0; background: var(--surface); z-index: 1; }
+table.main th.sticky { z-index: 3; background: var(--surface-2); }
+.tk { font-weight: 600; }
+.nm { color: var(--text-2); font-size: 12px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.star { border: 0; background: none; padding: 0 4px 0 0; font-size: 15px; color: var(--text-2); }
+.star.on { color: #f2a600; }
+.pager { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+/* detail drawer */
+#drawer { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; z-index: 20; }
+#drawer.open { display: block; }
+#panel { position: absolute; right: 0; top: 0; bottom: 0; width: min(860px, 100%); background: var(--bg); overflow: auto; padding: 20px 22px; }
+#panel h2.title { font-size: 20px; margin: 0; }
+.retgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; margin: 12px 0; }
+.retgrid > div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+.retgrid .k { font-size: 11px; color: var(--text-2); }
+.retgrid .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+.retgrid .a { font-size: 11px; color: var(--text-2); }
+#chart { width: 100%; height: 300px; display: block; }
+.tip { position: fixed; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  padding: 4px 8px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.15); display: none; white-space: nowrap; }
+.calgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 4px; }
+.calgrid > div { border-radius: 6px; padding: 5px 6px; font-size: 12px; text-align: center; border: 1px solid var(--line); }
+.calgrid .y { color: var(--text-2); font-size: 11px; }
+.note { font-size: 12px; color: var(--text-2); margin-top: 18px; }
+.error { padding: 40px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>US Stock Dashboard</h1>
+    <div class="muted" id="asof">Loading…</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button id="themeBtn" title="Toggle light/dark">◐ Theme</button>
+  </div>
+</header>
+<main>
+  <section class="grid bench" id="bench"></section>
+
+  <div class="filters">
+    <span class="muted">Period:</span>
+    <div class="pills" id="periodPills"></div>
+  </div>
+
+  <section class="grid two">
+    <div class="card movers"><h2 id="gainTitle">Top gainers</h2><table id="gainers"></table></div>
+    <div class="card movers"><h2 id="loseTitle">Top losers</h2><table id="losers"></table></div>
+    <div class="card"><h2 id="sectorTitle">Median return by sector</h2><div id="sectors"></div></div>
+  </section>
+
+  <div class="filters">
+    <input type="search" id="q" placeholder="Search ticker or company…">
+    <select id="sector"><option value="">All sectors / exchanges</option></select>
+    <label><input type="checkbox" id="onlyStar"> ★ My watchlist only</label>
+    <span class="muted" id="count"></span>
+    <button id="csvBtn">⬇ Download CSV</button>
+  </div>
+
+  <div class="tablewrap"><table class="main" id="tbl"><thead></thead><tbody></tbody></table></div>
+  <div class="pager">
+    <button id="prev">‹ Prev</button><span id="pageInfo" class="muted"></span><button id="next">Next ›</button>
+    <select id="pageSize"><option>50</option><option selected>100</option><option>250</option><option>500</option></select>
+  </div>
+
+  <p class="note">Prices are daily closes adjusted for splits and dividends (so returns include dividends), from Yahoo Finance
+  via the free <code>yfinance</code> library. Data refreshes automatically every weekday after the US market closes.
+  Not investment advice.</p>
+</main>
+
+<div id="drawer"><div id="panel"></div></div>
+<div class="tip" id="tip"></div>
+
+<script>
+(() => {
+  // ---------- theme ----------
+  const root = document.documentElement;
+  try { const t = localStorage.getItem("theme"); if (t) root.dataset.theme = t; } catch (e) {}
+  document.getElementById("themeBtn").onclick = () => {
+    const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+    try { localStorage.setItem("theme", root.dataset.theme); } catch (e) {}
+    if (current) drawChart();
+  };
+
+  // ---------- watchlist ----------
+  let stars = new Set();
+  try { stars = new Set(JSON.parse(localStorage.getItem("stars") || "[]")); } catch (e) {}
+  const saveStars = () => { try { localStorage.setItem("stars", JSON.stringify([...stars])); } catch (e) {} };
+
+  // ---------- helpers ----------
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const fmtP = (v) => v == null ? "—" : (v < 1 ? v.toFixed(4) : v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const fmtR = (v) => v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(2) + "%";
+  const cls = (v) => v == null ? "muted" : v > 0 ? "up" : v < 0 ? "down" : "";
+  const fmtVol = (v) => v == null ? "—" : v >= 1e9 ? (v / 1e9).toFixed(2) + "B" : v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? (v / 1e3).toFixed(0) + "K" : v;
+  // cell tint: diverging, neutral at 0, saturates at +/-cap
+  const tint = (v, cap) => {
+    if (v == null || v === 0) return "";
+    const a = Math.min(Math.abs(v) / cap, 1) * 0.28;
+    return `background:rgba(var(${v > 0 ? "--up-bg" : "--down-bg"}),${a.toFixed(3)})`;
+  };
+  const YEARS = { "1D": 1/252, "1W": 1/52, "1M": 1/12, "3M": .25, "6M": .5, "YTD": null, "1Y": 1, "1.5Y": 1.5, "2Y": 2, "3Y": 3, "4Y": 4, "5Y": 5, "10Y": 10 };
+  const capFor = (p) => { const y = YEARS[p] || .5; return Math.max(3, 40 * Math.sqrt(y)); };
+  const cagr = (r, y) => (r == null || !y || y < 1) ? null : (Math.pow(1 + r / 100, 1 / y) - 1) * 100;
+
+  let D, P, period = "1Y", sortKey = "r:1Y", sortDir = -1, page = 0, pageSize = 100, filtered = [], current = null, currentHist = null, range = "1Y";
+
+  fetch("data/summary.json", { cache: "no-cache" }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(init)
+    .catch(e => { document.querySelector("main").innerHTML = `<div class="error card">Could not load data/summary.json (${esc(e.message)}).<br>
+      If you just set this up, open the <b>Actions</b> tab on GitHub and run “Update stock data” once.</div>`; });
+
+  function init(data) {
+    D = data; P = D.periods;
+    $("asof").textContent = `${D.stocks.length.toLocaleString()} stocks · prices as of ${D.asof} close · updated ${D.updated}` + (D.universe === "demo" ? " · DEMO DATA" : "");
+    // benchmarks
+    $("bench").innerHTML = D.benchmarks.map(b => `<div class="card" data-t="${esc(b.t)}" style="cursor:pointer">
+      <div class="name">${esc(b.n)}</div><div class="price">${fmtP(b.p)}</div>
+      <div class="rets">${["1D", "1M", "1Y", "5Y", "10Y"].map(p => { const v = b.r[P.indexOf(p)]; return `<span><span class="muted">${p}</span> <span class="${cls(v)}">${fmtR(v)}</span></span>`; }).join("")}</div></div>`).join("");
+    $("bench").onclick = (e) => { const c = e.target.closest("[data-t]"); if (c) openDetail(D.benchmarks.find(b => b.t === c.dataset.t)); };
+    // period pills
+    $("periodPills").innerHTML = P.map(p => `<button data-p="${p}" class="${p === period ? "on" : ""}">${p}</button>`).join("");
+    $("periodPills").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; period = b.dataset.p; sortKey = "r:" + period; sortDir = -1;
+      [...$("periodPills").children].forEach(x => x.classList.toggle("on", x.dataset.p === period)); renderAll(); };
+    // sector filter
+    const secs = [...new Set(D.stocks.map(s => s.s))].sort();
+    $("sector").innerHTML += secs.map(s => `<option>${esc(s)}</option>`).join("");
+    $("q").oninput = $("sector").onchange = $("onlyStar").onchange = () => { page = 0; renderTable(); };
+    $("prev").onclick = () => { if (page > 0) { page--; renderTable(); } };
+    $("next").onclick = () => { if ((page + 1) * pageSize < filtered.length) { page++; renderTable(); } };
+    $("pageSize").onchange = (e) => { pageSize = +e.target.value; page = 0; renderTable(); };
+    $("csvBtn").onclick = downloadCSV;
+    // open ticker from URL hash, e.g. #AAPL
+    const h = decodeURIComponent(location.hash.slice(1)).toUpperCase();
+    renderAll();
+    if (h) { const s = D.stocks.find(x => x.t === h); if (s) openDetail(s); }
+  }
+
+  function renderAll() { renderMovers(); renderSectors(); renderTable(); }
+
+  function renderMovers() {
+    const i = P.indexOf(period);
+    const have = D.stocks.filter(s => s.r[i] != null).sort((a, b) => b.r[i] - a.r[i]);
+    const row = (s) => `<tr data-t="${esc(s.t)}"><td class="tk">${esc(s.t)}</td><td class="nm">${esc(s.n)}</td><td class="num">${fmtP(s.p)}</td><td class="num ${cls(s.r[i])}">${fmtR(s.r[i])}</td></tr>`;
+    $("gainTitle").textContent = `Top 10 gainers · ${period}`;
+    $("loseTitle").textContent = `Top 10 losers · ${period}`;
+    $("gainers").innerHTML = have.slice(0, 10).map(row).join("");
+    $("losers").innerHTML = have.slice(-10).reverse().map(row).join("");
+  }
+
+  function renderSectors() {
+    const i = P.indexOf(period), by = {};
+    D.stocks.forEach(s => { if (s.r[i] != null) (by[s.s] = by[s.s] || []).push(s.r[i]); });
+    const med = (a) => { a.sort((x, y) => x - y); const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+    let rows = Object.entries(by).map(([k, a]) => [k, med(a), a.length]).sort((a, b) => b[1] - a[1]);
+    if (rows.length > 14) rows = rows.filter(r => r[2] >= 5).slice(0, 14);
+    const max = Math.max(1, ...rows.map(r => Math.abs(r[1])));
+    $("sectorTitle").textContent = `Median return by ${D.universe === "all" ? "sector / exchange" : "sector"} · ${period}`;
+    $("sectors").innerHTML = rows.map(([k, v, n]) => {
+      const w = Math.abs(v) / max * 50;
+      const style = v >= 0 ? `left:50%;width:${w}%;background:var(--up)` : `left:${50 - w}%;width:${w}%;background:var(--down)`;
+      return `<div class="sector-row" title="${esc(k)}: median ${fmtR(v)} across ${n} stocks"><span class="nm" style="color:var(--text);font-size:13px">${esc(k)}</span>
+        <div class="track"><div class="zero"></div><div class="bar" style="${style}"></div></div><span class="num ${cls(v)}">${fmtR(v)}</span></div>`;
+    }).join("");
+  }
+
+  const COLS = () => [
+    { k: "t", label: "Ticker", l: 1 }, { k: "s", label: "Sector", l: 1 }, { k: "p", label: "Price" },
+    ...P.map(p => ({ k: "r:" + p, label: p })), { k: "off", label: "vs 52w high" }, { k: "v", label: "Volume" },
+  ];
+  const val = (s, k) => k.startsWith("r:") ? s.r[P.indexOf(k.slice(2))] : k === "off" ? (s.hi ? (s.p / s.hi - 1) * 100 : null) : s[k];
+
+  function renderTable() {
+    const q = $("q").value.trim().toLowerCase(), sec = $("sector").value, only = $("onlyStar").checked;
+    filtered = D.stocks.filter(s => (!q || s.t.toLowerCase().includes(q) || s.n.toLowerCase().includes(q)) && (!sec || s.s === sec) && (!only || stars.has(s.t)));
+    filtered.sort((a, b) => {
+      const x = val(a, sortKey), y = val(b, sortKey);
+      if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+      return (typeof x === "string" ? x.localeCompare(y) : x - y) * sortDir;
+    });
+    $("count").textContent = `${filtered.length.toLocaleString()} stocks`;
+    const cols = COLS();
+    $("tbl").tHead.innerHTML = "<tr>" + cols.map((c, j) => `<th data-k="${c.k}" class="${c.l ? "l" : ""} ${j === 0 ? "sticky" : ""} ${c.k === sortKey ? "sorted" : ""}">${c.label}${c.k === sortKey ? (sortDir < 0 ? " ▼" : " ▲") : ""}</th>`).join("") + "</tr>";
+    $("tbl").tHead.onclick = (e) => { const th = e.target.closest("th"); if (!th) return; const k = th.dataset.k;
+      if (k === sortKey) sortDir *= -1; else { sortKey = k; sortDir = (k === "t" || k === "s") ? 1 : -1; } renderTable(); };
+    const rows = filtered.slice(page * pageSize, (page + 1) * pageSize);
+    $("tbl").tBodies[0].innerHTML = rows.map(s => {
+      const off = val(s, "off");
+      return `<tr data-t="${esc(s.t)}"><td class="l sticky"><button class="star ${stars.has(s.t) ? "on" : ""}" data-star="${esc(s.t)}" aria-label="watchlist">${stars.has(s.t) ? "★" : "☆"}</button><span class="tk">${esc(s.t)}</span><div class="nm">${esc(s.n)}</div></td>
+        <td class="l nm">${esc(s.s)}</td><td class="num">${fmtP(s.p)}</td>
+        ${P.map((p, i) => `<td class="num ${cls(s.r[i])}" style="${tint(s.r[i], capFor(p))}">${fmtR(s.r[i])}</td>`).join("")}
+        <td class="num ${cls(off)}">${fmtR(off)}</td><td class="num muted">${fmtVol(s.v)}</td></tr>`;
+    }).join("") || `<tr><td colspan="${cols.length}" class="l muted" style="padding:20px">No stocks match.</td></tr>`;
+    const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    $("pageInfo").textContent = `Page ${page + 1} of ${pages}`;
+  }
+
+  document.addEventListener("click", (e) => {
+    const st = e.target.closest("[data-star]");
+    if (st) { e.stopPropagation(); const t = st.dataset.star; stars.has(t) ? stars.delete(t) : stars.add(t); saveStars(); renderTable(); if (current && current.t === t) renderPanel(); return; }
+    const tr = e.target.closest("tr[data-t]");
+    if (tr && !e.target.closest("#panel")) { const s = D.stocks.find(x => x.t === tr.dataset.t); if (s) openDetail(s); }
+  });
+  $("drawer").onclick = (e) => { if (e.target.id === "drawer") closeDetail(); };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDetail(); });
+  function closeDetail() { $("drawer").classList.remove("open"); current = null; history.replaceState(null, "", location.pathname); }
+
+  function downloadCSV() {
+    const head = ["Ticker", "Name", "Sector", "Price", ...P.map(p => p + " %"), "52w High", "52w Low", "Volume"];
+    const lines = [head.join(",")].concat(filtered.map(s => [s.t, `"${s.n.replace(/"/g, '""')}"`, `"${s.s}"`, s.p, ...s.r.map(v => v ?? ""), s.hi, s.lo, s.v ?? ""].join(",")));
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+    a.download = `us-stocks-${D.asof}.csv`; a.click();
+  }
+
+  // ---------- detail ----------
+  function openDetail(s) {
+    current = s; currentHist = null; range = "1Y";
+    $("drawer").classList.add("open");
+    history.replaceState(null, "", "#" + encodeURIComponent(s.t));
+    renderPanel();
+    fetch(`data/history/${encodeURIComponent(s.t)}.json`).then(r => r.json()).then(h => { if (current === s) { currentHist = h; renderPanel(); } })
+      .catch(() => { $("chartBox").innerHTML = '<p class="muted">No price history file.</p>'; });
+  }
+
+  function renderPanel() {
+    const s = current;
+    const isStock = !!s.s;
+    $("panel").innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:12px">
+        <div><h2 class="title">${esc(s.t)} <span class="muted" style="font-weight:400;font-size:15px">${esc(s.n)}</span></h2>
+          <div class="muted">${isStock ? esc(s.s) + " · " : ""}Last close <b style="color:var(--text)">${fmtP(s.p)}</b>${s.hi ? ` · 52w range ${fmtP(s.lo)} – ${fmtP(s.hi)}` : ""}${s.since ? ` · data since ${s.since}` : ""}</div></div>
+        <div style="display:flex;gap:6px">${isStock ? `<button data-star="${esc(s.t)}">${stars.has(s.t) ? "★ In watchlist" : "☆ Add to watchlist"}</button>` : ""}<button id="closeBtn">✕</button></div>
+      </div>
+      <div class="retgrid">${P.map((p, i) => { const v = s.r[i], c = cagr(v, YEARS[p]);
+        return `<div><div class="k">${p}</div><div class="v ${cls(v)}">${fmtR(v)}</div>${c != null && YEARS[p] > 1 ? `<div class="a">${fmtR(c)}/yr</div>` : ""}</div>`; }).join("")}</div>
+      <div class="card" id="chartBox">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>Price</b>
+          <div class="pills" id="rangePills">${["1M", "3M", "6M", "1Y", "2Y", "3Y", "5Y", "10Y"].map(r => `<button data-r="${r}" class="${r === range ? "on" : ""}">${r}</button>`).join("")}</div></div>
+        ${currentHist ? '<svg id="chart" role="img" aria-label="price chart"></svg>' : '<p class="muted">Loading chart…</p>'}
+      </div>
+      <div class="card" style="margin-top:12px"><h2>Every year (calendar-year return)</h2><div class="calgrid" id="years">${currentHist ? "" : "…"}</div></div>
+      <div class="card" style="margin-top:12px"><h2>Every month (last 24 months)</h2><div class="calgrid" id="months">${currentHist ? "" : "…"}</div></div>
+      <p class="note">“/yr” = compound annual growth rate for periods longer than 1 year. Returns include dividends (adjusted prices).</p>`;
+    $("closeBtn").onclick = closeDetail;
+    $("rangePills").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; range = b.dataset.r;
+      [...$("rangePills").children].forEach(x => x.classList.toggle("on", x.dataset.r === range)); drawChart(); };
+    if (currentHist) { drawChart(); drawCalendar(); }
+  }
+
+  function drawCalendar() {
+    const m = currentHist.m; // month-end closes, last point = latest close
+    const yearEnd = {}; m.forEach(([d, v]) => { yearEnd[d.slice(0, 4)] = v; });
+    const years = Object.keys(yearEnd).sort();
+    const yr = [];
+    for (let i = 1; i < years.length; i++) yr.push([years[i] + (i === years.length - 1 ? " YTD" : ""), (yearEnd[years[i]] / yearEnd[years[i - 1]] - 1) * 100]);
+    $("years").innerHTML = yr.reverse().map(([y, v]) => `<div style="${tint(v, 40)}"><div class="y">${y}</div><b class="${cls(v)}">${fmtR(v)}</b></div>`).join("") || '<span class="muted">Not enough history.</span>';
+    const mo = [];
+    for (let i = Math.max(1, m.length - 24); i < m.length; i++) mo.push([m[i][0].slice(0, 7), (m[i][1] / m[i - 1][1] - 1) * 100]);
+    const names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    $("months").innerHTML = mo.reverse().map(([d, v]) => `<div style="${tint(v, 12)}"><div class="y">${names[+d.slice(5) - 1]} ${d.slice(0, 4)}</div><b class="${cls(v)}">${fmtR(v)}</b></div>`).join("");
+  }
+
+  function drawChart() {
+    const svg = $("chart"); if (!svg || !currentHist) return;
+    const months = { "1M": 1, "3M": 3, "6M": 6, "1Y": 12, "2Y": 24, "3Y": 36, "5Y": 60, "10Y": 120 }[range];
+    const src = months <= 12 ? currentHist.d : currentHist.m;
+    const last = new Date(src[src.length - 1][0]);
+    const start = new Date(last); start.setMonth(start.getMonth() - months);
+    let pts = src.filter(([d]) => new Date(d) >= start);
+    if (months > 12) { // prepend the month-end just before start for a full window
+      const before = src.filter(([d]) => new Date(d) < start); if (before.length) pts = [before[before.length - 1], ...pts];
+    }
+    if (pts.length < 2) { svg.outerHTML = '<p class="muted" id="chart">Not enough history for this range.</p>'; return; }
+    const W = svg.clientWidth || 800, H = 300, m = { l: 8, r: 58, t: 12, b: 24 };
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    const xs = pts.map(p => +new Date(p[0])), ys = pts.map(p => p[1]);
+    const x0 = xs[0], x1 = xs[xs.length - 1];
+    let lo = Math.min(...ys), hi = Math.max(...ys); const pad = (hi - lo) * 0.08 || hi * 0.05; lo = Math.max(0, lo - pad); hi += pad;
+    const X = (t) => m.l + (t - x0) / (x1 - x0 || 1) * (W - m.l - m.r), Y = (v) => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+    const css = getComputedStyle(root), up = ys[ys.length - 1] >= ys[0];
+    const col = css.getPropertyValue(up ? "--up" : "--down").trim(), grid = css.getPropertyValue("--line").trim(), txt = css.getPropertyValue("--text-2").trim();
+    const ticks = 4, yt = []; for (let i = 0; i <= ticks; i++) yt.push(lo + (hi - lo) * i / ticks);
+    const xt = []; for (let i = 0; i <= 4; i++) xt.push(x0 + (x1 - x0) * i / 4);
+    const fd = (t) => { const d = new Date(t); return months <= 6 ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : d.toLocaleDateString(undefined, { month: "short", year: "2-digit" }); };
+    const path = pts.map((p, i) => (i ? "L" : "M") + X(xs[i]).toFixed(1) + "," + Y(p[1]).toFixed(1)).join("");
+    const chg = (ys[ys.length - 1] / ys[0] - 1) * 100;
+    svg.innerHTML = `
+      ${yt.map(v => `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${grid}"/><text x="${W - m.r + 6}" y="${Y(v) + 4}" font-size="11" fill="${txt}">${fmtP(v)}</text>`).join("")}
+      ${xt.map((t, j) => `<text x="${X(t)}" y="${H - 6}" font-size="11" fill="${txt}" text-anchor="${j === 0 ? "start" : j === 4 ? "end" : "middle"}">${fd(t)}</text>`).join("")}
+      <path d="${path} L${X(x1)},${H - m.b} L${X(x0)},${H - m.b} Z" fill="${col}" opacity=".08"/>
+      <path d="${path}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/>
+      <text x="${m.l + 4}" y="${m.t + 12}" font-size="12" fill="${col}" font-weight="600">${fmtR(chg)} over ${range}</text>
+      <line id="xh" y1="${m.t}" y2="${H - m.b}" stroke="${txt}" stroke-dasharray="3 3" visibility="hidden"/>
+      <circle id="dot" r="4" fill="${col}" stroke="${css.getPropertyValue("--surface").trim()}" stroke-width="2" visibility="hidden"/>
+      <rect x="${m.l}" y="0" width="${W - m.l - m.r}" height="${H}" fill="transparent" id="hit"/>`;
+    const tip = $("tip");
+    svg.querySelector("#hit").onmousemove = (e) => {
+      const r = svg.getBoundingClientRect(), mx = (e.clientX - r.left) * W / r.width;
+      const t = x0 + (mx - m.l) / (W - m.l - m.r) * (x1 - x0);
+      let i = 0, best = Infinity; xs.forEach((x, j) => { const d = Math.abs(x - t); if (d < best) { best = d; i = j; } });
+      const cx = X(xs[i]), cy = Y(ys[i]);
+      svg.querySelector("#xh").setAttribute("x1", cx); svg.querySelector("#xh").setAttribute("x2", cx); svg.querySelector("#xh").setAttribute("visibility", "visible");
+      const dot = svg.querySelector("#dot"); dot.setAttribute("cx", cx); dot.setAttribute("cy", cy); dot.setAttribute("visibility", "visible");
+      const since = (ys[ys.length - 1] / ys[i] - 1) * 100;
+      tip.innerHTML = `<b>${pts[i][0]}</b> · ${fmtP(ys[i])}<br><span class="muted">to latest:</span> <span class="${cls(since)}">${fmtR(since)}</span>`;
+      tip.style.display = "block"; tip.style.zIndex = 30;
+      tip.style.left = Math.min(e.clientX + 14, innerWidth - 200) + "px"; tip.style.top = (e.clientY - 40) + "px";
+    };
+    svg.querySelector("#hit").onmouseleave = () => { tip.style.display = "none"; svg.querySelector("#xh").setAttribute("visibility", "hidden"); svg.querySelector("#dot").setAttribute("visibility", "hidden"); };
+  }
+})();
+</script>
+</body>
+</html>

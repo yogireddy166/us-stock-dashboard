@@ -1,0 +1,6 @@
+# My personal watchlist - one ticker per line.
+# These are ALWAYS added to the dashboard, even if not in the S&P 500.
+# Lines starting with # are ignored.
+AAPL
+MSFT
+NVDA
